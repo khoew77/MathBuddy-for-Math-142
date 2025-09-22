@@ -88,15 +88,28 @@ def save_to_db(all_data):
         return False
 
 def get_chatgpt_response(prompt, context=""):
+    """Generates a response from OpenAI and updates message history."""
     system_messages = [{"role": "system", "content": initial_prompt}]
     if context:
         context_prompt = f"Use the following content from an uploaded document...\n\nDOCUMENT CONTENT:\n{context[:4000]}"
         system_messages.append({"role": "system", "content": context_prompt})
+
     messages_to_send = system_messages + st.session_state["messages"] + [{"role": "user", "content": prompt}]
-    response = client.chat.completions.create(model=MODEL, messages=messages_to_send)
+    
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=messages_to_send,
+    )
     answer = response.choices[0].message.content
+
+    # Append to the main, unified message history
     st.session_state["messages"].append({"role": "user", "content": prompt})
     st.session_state["messages"].append({"role": "assistant", "content": answer})
+    
+    # --- NEW ---
+    # Update the recent message state for the new display
+    st.session_state.recent_message = {"user": prompt, "assistant": answer}
+    
     return answer
 
 # --- PAGE DEFINITIONS ---
@@ -150,7 +163,6 @@ def page_3():
 
     with tab1:
         st.header("Type your question here")
-        # Use st.text_input for in-line placement and Enter-to-submit
         st.text_input(
             "Your question:",
             key="direct_chat_box",
@@ -169,17 +181,26 @@ def page_3():
         
         if st.session_state.get("file_text"):
             st.success(f"✅ Successfully processed **{st.session_state.processed_file_name}**.")
-            # This chat input remains at the bottom, dedicated to the document
             if prompt := st.chat_input("Ask a question about your document..."):
                 get_chatgpt_response(prompt, context=st.session_state.file_text)
                 st.rerun()
 
+    # --- NEW DISPLAY SECTION ---
+    st.divider()
+    st.subheader("📌 Most Recent Exchange")
+    recent = st.session_state.get("recent_message", {"user": "", "assistant": ""})
+    if recent["user"] or recent["assistant"]:
+        st.info(f"**You:** {recent['user']}\n\n**MathBuddy:** {recent['assistant']}")
+    else:
+        st.info("Your first exchange will appear here.")
+    
     st.divider()
     st.subheader("📜 Full Chat History")
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
                 content = msg["content"]
+                # (Graphing logic remains the same)
                 if "```python" in content and "matplotlib" in content:
                     code = content.split("```python\n")[1].split("```")[0]
                     try:
@@ -203,6 +224,7 @@ def page_3():
             st.session_state.step = 4
             st.session_state.feedback_saved = False
             st.rerun()
+            
 def page_4():
     st.title("🎉 Wrap-Up: Final Reflection")
     if not st.session_state.get("feedback_saved"):
