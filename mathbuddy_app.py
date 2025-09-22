@@ -88,7 +88,7 @@ def handle_direct_chat():
 
 def page_1():
     st.title("📚 Welcome to MathBuddy")
-    st.image("MathMentor_promo.png", caption="Your Study Companion for Math Success 📱", width=300)
+    st.image("mathbuddy_promo.png", caption="Your Study Companion for Math Success 📱", width=300)
     st.write("Please enter your student ID and name to get started.")
     st.session_state.user_number = st.text_input("🆔 Student ID", value=st.session_state.get("user_number", ""))
     st.session_state.user_name = st.text_input("👤 Name", value=st.session_state.get("user_name", ""))
