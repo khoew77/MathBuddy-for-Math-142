@@ -189,7 +189,7 @@ def page_3():
     st.subheader("📜 Full Chat History")
 
     if st.session_state.messages:
-        for msg in reversed(st.session_state.messages):
+        for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
                 # Also use the new rendering function here for consistency
                 render_message_content(msg["content"])
