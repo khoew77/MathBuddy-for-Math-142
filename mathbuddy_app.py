@@ -175,7 +175,7 @@ def page_3():
     st.write("✍️ Describe your math question or upload a document. Let's work through it together!")
 
     # --- TABS FOR DIFFERENT INPUT METHODS ---
-    tab1, tab2 = st.tabs(["Direct Chat", "Chat with a Document"])
+    tab1, tab2 = st.tabs(["✍️ Direct Chat", "📄 Chat with a Document"])
 
     with tab1:
         st.header("Chat with MathBuddy")
