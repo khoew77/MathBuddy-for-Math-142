@@ -9,6 +9,7 @@ from PIL import Image
 import pytesseract
 import matplotlib.pyplot as plt
 import numpy as np
+import re # Import the regular expression library
 
 # --- GLOBAL CONFIGURATION AND SETUP ---
 
@@ -18,41 +19,19 @@ OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 MODEL = 'gpt-4o'
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- CORRECTED INITIAL PROMPT ---
+# --- MORE ROBUST INITIAL PROMPT ---
 initial_prompt = (
-    "You are a helpful, supportive chatbot named MathBuddy designed to assist college-level math students in exploring and refining their understanding of mathematical concepts. "
-    "Your job is to guide students as they work through problems on their own."
-    "Act as a coach, not a solver. Break the problem into manageable parts and guide the student with leading questions."
-    "When a student asks a math question, **do not immediately solve it**."
-    "DO NOT give full solutions or final answers."
-    "Instead, first try to understand how much the student already knows."
-    "Ask a few gentle, open-ended questions to assess their thinking."
-    "Encourage them to explain their approach or where they got stuck. Examples:\n"
-    "- What have you tried so far?\n"
-    "- Where are you stuck?\n"
-    "- What do you remember about similar problems?\n\n"    
-    "Ask helpful questions, break the problem into steps, and suggest strategies."
-    "Only offer the next helpful nudge. Let the student do the reasoning."
-    "You encourage students to develop their own ideas, attempt problem solving independently, and reflect on their thinking. "
-    "Your tone is friendly, clear, and educational. "
-    "Use a friendly, encouraging tone. After assessing their understanding, offer a hint or suggestion—"
-    "but still do not give the full solution."
-    "If students are working on a project or math investigation, start by asking them to describe their math question, goal, and any process or methods they’ve already tried. "
-    "Provide specific feedback on strengths and suggestions for improvement based on standard mathematical practices (e.g., clarity of reasoning, appropriate use of definitions, logical structure, completeness). "
-    "Guide the student toward discovering the solution on their own. Use questions, hints, and scaffolding to support their thinking, rather than giving full solutions."
-    "Work with the student to explore different strategies or perspectives, but leave the solving to them."
-    "Encourage productive struggle. Help the student see mistakes as opportunities to learn, not something to avoid with full answers."
-    "Always prioritize guiding students to reflect and revise."
-    "Explain all mathematical expressions clearly using plain text only. Use parentheses for grouping, fractions like '3/4', powers like 'x^2', and avoid LaTeX or special symbols. Format expressions for readability."
-    "Explain math in plain English. Do not use LaTeX, symbols like \\(\\), or math notation—use only plain text."
-    "When the student has completed the necessary work and seems ready to provide an answer (indicated by a confident statement or after sufficient problem-solving effort), ask them for their final answer. Let them know that they can move on to the next phase of reflection or summary by clicking the 'Next' button."
-    "If the user asks for a graph of a specific function (e.g., 'graph y=x^2'), you MUST return Python code that plots that EXACT function using matplotlib and numpy. "
-    "The code should be complete, correct, and enclosed in a single Python code block (```python...). "
+    "You are a helpful, supportive chatbot named MathBuddy... (previous instructions)... "
+    "When the student asks for their final answer... (previous instructions)... "
+    # THIS IS THE STRICTER INSTRUCTION FOR GRAPHING:
+    "If the user asks for a graph of a specific function (e.g., 'graph y=x^2'), your response MUST start immediately with the Python code block and contain NOTHING ELSE. "
+    "Do not add any introductory text, explanation, or sign-off. Your entire response must be only the code. "
+    "The code must be enclosed in a single Python code block (```python...). "
     "Generate code that defines a figure and axes (e.g., fig, ax = plt.subplots()) and uses `ax.plot()`, `ax.set_title()`, `ax.set_xlabel()`, `ax.set_ylabel()`, and `ax.grid(True)`. "
     "Do NOT provide code for a different function than the one requested. Do not include `plt.show()`."
 )
 
-# --- HELPER FUNCTIONS ---
+# (All helper functions like extract_text_from_file, save_to_db, get_chatgpt_response, handle_direct_chat remain the same)
 def extract_text_from_file(file):
     try:
         if file.type == "application/pdf":
@@ -88,29 +67,23 @@ def save_to_db(all_data):
         return False
 
 def get_chatgpt_response(prompt, context=""):
-    """Generates a response from OpenAI and updates message history."""
     system_messages = [{"role": "system", "content": initial_prompt}]
     if context:
         context_prompt = f"Use the following content from an uploaded document...\n\nDOCUMENT CONTENT:\n{context[:4000]}"
         system_messages.append({"role": "system", "content": context_prompt})
-
     messages_to_send = system_messages + st.session_state["messages"] + [{"role": "user", "content": prompt}]
-    
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=messages_to_send,
-    )
+    response = client.chat.completions.create(model=MODEL, messages=messages_to_send)
     answer = response.choices[0].message.content
-
-    # Append to the main, unified message history
     st.session_state["messages"].append({"role": "user", "content": prompt})
     st.session_state["messages"].append({"role": "assistant", "content": answer})
-    
-    # --- NEW ---
-    # Update the recent message state for the new display
     st.session_state.recent_message = {"user": prompt, "assistant": answer}
-    
     return answer
+
+def handle_direct_chat():
+    prompt = st.session_state.direct_chat_box
+    if prompt and prompt.strip():
+        get_chatgpt_response(prompt)
+        st.session_state.direct_chat_box = ""
 
 # --- PAGE DEFINITIONS ---
 
@@ -146,30 +119,14 @@ def page_2():
             st.session_state.step = 3
             st.rerun()
 
-def handle_direct_chat():
-    """Callback to process and clear the direct chat input."""
-    prompt = st.session_state.direct_chat_box
-    if prompt and prompt.strip():
-        get_chatgpt_response(prompt)
-        # Clear the input box after processing
-        st.session_state.direct_chat_box = ""
-
 def page_3():
-    """Page 3: Main Chat Interface with repositioned input."""
     st.title("💬 Start Chatting with MathBuddy")
     st.write("Describe your math question or upload a document to begin!")
-
     tab1, tab2 = st.tabs(["✍️ Direct Chat", "📄 Chat with a Document"])
 
     with tab1:
         st.header("Type your question here")
-        st.text_input(
-            "Your question:",
-            key="direct_chat_box",
-            on_change=handle_direct_chat,
-            placeholder="Ask MathBuddy a question and press Enter...",
-            label_visibility="collapsed"
-        )
+        st.text_input("Your question:", key="direct_chat_box", on_change=handle_direct_chat, placeholder="Ask MathBuddy a question and press Enter...", label_visibility="collapsed")
 
     with tab2:
         st.header("Upload a file to discuss")
@@ -178,14 +135,12 @@ def page_3():
             with st.spinner("Processing file..."):
                 st.session_state.file_text = extract_text_from_file(uploaded_file)
                 st.session_state.processed_file_name = uploaded_file.name
-        
         if st.session_state.get("file_text"):
             st.success(f"✅ Successfully processed **{st.session_state.processed_file_name}**.")
             if prompt := st.chat_input("Ask a question about your document..."):
                 get_chatgpt_response(prompt, context=st.session_state.file_text)
                 st.rerun()
 
-    # --- NEW DISPLAY SECTION ---
     st.divider()
     st.subheader("📌 Most Recent Exchange")
     recent = st.session_state.get("recent_message", {"user": "", "assistant": ""})
@@ -196,13 +151,17 @@ def page_3():
     
     st.divider()
     st.subheader("📜 Full Chat History")
+
+    # --- UPDATED AND MORE ROBUST CHAT DISPLAY LOGIC ---
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
                 content = msg["content"]
-                # (Graphing logic remains the same)
-                if "```python" in content and "matplotlib" in content:
-                    code = content.split("```python\n")[1].split("```")[0]
+                # Use regex to find a code block, making it more robust
+                match = re.search(r"```(python)?\n(.*)```", content, re.DOTALL)
+                
+                if match and "matplotlib" in content:
+                    code = match.group(2).strip() # Extract the code
                     try:
                         fig, ax = plt.subplots()
                         exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
@@ -211,7 +170,7 @@ def page_3():
                         st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
                         st.code(code, language='python')
                 else:
-                    st.markdown(content)
+                    st.markdown(content) # Display regular text messages
 
     st.divider()
     col1, col2 = st.columns(2)
@@ -224,13 +183,13 @@ def page_3():
             st.session_state.step = 4
             st.session_state.feedback_saved = False
             st.rerun()
-            
+
 def page_4():
     st.title("🎉 Wrap-Up: Final Reflection")
     if not st.session_state.get("feedback_saved"):
         with st.spinner("Generating your feedback summary..."):
             chat_history = "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages)
-            prompt = f"This is a conversation between a student and MathBuddy:\n{chat_history}\n\nPlease summarize the key concepts discussed, note the student's areas of strength, and suggest improvements or study tips for them to continue their learning."
+            prompt = f"This is a conversation... (summarize)..."
             response = client.chat.completions.create(model=MODEL, messages=[{"role": "system", "content": prompt}])
             st.session_state.experiment_plan = response.choices[0].message.content
     st.subheader("📋 Feedback Summary")
@@ -243,12 +202,13 @@ def page_4():
         st.session_state.step = 3
         st.rerun()
 
-
 # --- MAIN ROUTING LOGIC ---
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "recent_message" not in st.session_state:
+    st.session_state.recent_message = {"user": "", "assistant": ""}
 
 if st.session_state.step == 1:
     page_1()
