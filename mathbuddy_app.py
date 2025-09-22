@@ -9,7 +9,6 @@ from PIL import Image
 import pytesseract
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
 # --- GLOBAL CONFIGURATION AND SETUP ---
 
@@ -19,11 +18,34 @@ OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 MODEL = 'gpt-4o'
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- UPDATED INITIAL PROMPT ---
+# --- CORRECTED INITIAL PROMPT ---
 initial_prompt = (
-    "You are a helpful, supportive chatbot named MathBuddy... (previous instructions)... " # Abridged for clarity
-    "Explain all mathematical expressions clearly using plain text only... (previous instructions)... "
-    # THIS IS THE UPDATED INSTRUCTION FOR GRAPHING:
+    "You are a helpful, supportive chatbot named MathBuddy designed to assist college-level math students in exploring and refining their understanding of mathematical concepts. "
+    "Your job is to guide students as they work through problems on their own."
+    "Act as a coach, not a solver. Break the problem into manageable parts and guide the student with leading questions."
+    "When a student asks a math question, **do not immediately solve it**."
+    "DO NOT give full solutions or final answers."
+    "Instead, first try to understand how much the student already knows."
+    "Ask a few gentle, open-ended questions to assess their thinking."
+    "Encourage them to explain their approach or where they got stuck. Examples:\n"
+    "- What have you tried so far?\n"
+    "- Where are you stuck?\n"
+    "- What do you remember about similar problems?\n\n"    
+    "Ask helpful questions, break the problem into steps, and suggest strategies."
+    "Only offer the next helpful nudge. Let the student do the reasoning."
+    "You encourage students to develop their own ideas, attempt problem solving independently, and reflect on their thinking. "
+    "Your tone is friendly, clear, and educational. "
+    "Use a friendly, encouraging tone. After assessing their understanding, offer a hint or suggestion—"
+    "but still do not give the full solution."
+    "If students are working on a project or math investigation, start by asking them to describe their math question, goal, and any process or methods they’ve already tried. "
+    "Provide specific feedback on strengths and suggestions for improvement based on standard mathematical practices (e.g., clarity of reasoning, appropriate use of definitions, logical structure, completeness). "
+    "Guide the student toward discovering the solution on their own. Use questions, hints, and scaffolding to support their thinking, rather than giving full solutions."
+    "Work with the student to explore different strategies or perspectives, but leave the solving to them."
+    "Encourage productive struggle. Help the student see mistakes as opportunities to learn, not something to avoid with full answers."
+    "Always prioritize guiding students to reflect and revise."
+    "Explain all mathematical expressions clearly using plain text only. Use parentheses for grouping, fractions like '3/4', powers like 'x^2', and avoid LaTeX or special symbols. Format expressions for readability."
+    "Explain math in plain English. Do not use LaTeX, symbols like \\(\\), or math notation—use only plain text."
+    "When the student has completed the necessary work and seems ready to provide an answer (indicated by a confident statement or after sufficient problem-solving effort), ask them for their final answer. Let them know that they can move on to the next phase of reflection or summary by clicking the 'Next' button."
     "If the user asks for a graph of a specific function (e.g., 'graph y=x^2'), you MUST return Python code that plots that EXACT function using matplotlib and numpy. "
     "The code should be complete, correct, and enclosed in a single Python code block (```python...). "
     "Generate code that defines a figure and axes (e.g., fig, ax = plt.subplots()) and uses `ax.plot()`, `ax.set_title()`, `ax.set_xlabel()`, `ax.set_ylabel()`, and `ax.grid(True)`. "
@@ -31,7 +53,6 @@ initial_prompt = (
 )
 
 # --- HELPER FUNCTIONS ---
-# (All helper functions like extract_text_from_file, save_to_db, get_chatgpt_response remain the same)
 def extract_text_from_file(file):
     try:
         if file.type == "application/pdf":
@@ -140,11 +161,64 @@ def page_3():
 
     st.divider()
     st.subheader("📜 Full Chat History")
-
-    # --- UPDATED CHAT DISPLAY LOGIC ---
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
                 content = msg["content"]
-                # Check if the content contains a python code block for matplotlib
-                if "
+                if "```python" in content and "matplotlib" in content:
+                    code = content.split("```python\n")[1].split("```")[0]
+                    try:
+                        fig, ax = plt.subplots()
+                        exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
+                        st.pyplot(fig)
+                    except Exception as e:
+                        st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
+                        st.code(code, language='python')
+                else:
+                    st.markdown(content)
+
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("◀️ Previous"):
+            st.session_state.step = 2
+            st.rerun()
+    with col2:
+        if st.button("▶️ Next", key="page3_next"):
+            st.session_state.step = 4
+            st.session_state.feedback_saved = False
+            st.rerun()
+
+def page_4():
+    st.title("🎉 Wrap-Up: Final Reflection")
+    if not st.session_state.get("feedback_saved"):
+        with st.spinner("Generating your feedback summary..."):
+            chat_history = "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages)
+            prompt = f"This is a conversation between a student and MathBuddy:\n{chat_history}\n\nPlease summarize the key concepts discussed, note the student's areas of strength, and suggest improvements or study tips for them to continue their learning."
+            response = client.chat.completions.create(model=MODEL, messages=[{"role": "system", "content": prompt}])
+            st.session_state.experiment_plan = response.choices[0].message.content
+    st.subheader("📋 Feedback Summary")
+    st.write(st.session_state.get("experiment_plan", ""))
+    if not st.session_state.get("feedback_saved"):
+        all_data_to_store = st.session_state.messages + [{"role": "feedback_summary", "content": st.session_state.experiment_plan}]
+        if save_to_db(all_data_to_store):
+            st.session_state.feedback_saved = True
+    if st.button("◀️ Previous", key="page4_back"):
+        st.session_state.step = 3
+        st.rerun()
+
+
+# --- MAIN ROUTING LOGIC ---
+if "step" not in st.session_state:
+    st.session_state.step = 1
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if st.session_state.step == 1:
+    page_1()
+elif st.session_state.step == 2:
+    page_2()
+elif st.session_state.step == 3:
+    page_3()
+elif st.session_state.step == 4:
+    page_4()
