@@ -104,8 +104,11 @@ def page_2():
     st.write("Follow these simple steps to make the most of your session.")
     st.info("""
        **1. Start a Conversation:** Explain your math question, problem, or goal.
+       
        **2. Get Guided Feedback:** MathBuddy will ask questions and suggest improvements.
+       
        **3. Ask Anything:** Don't hesitate to ask for clarification.
+       
        **4. Move On When Ready:** When you're done, just click the **Next** button.
     """)
     col1, col2 = st.columns(2)
@@ -118,8 +121,29 @@ def page_2():
             st.session_state.step = 3
             st.rerun()
 
+def render_message_content(content):
+    """Renders message content, executing and plotting code if found."""
+    # Use regex to find a code block, making it more robust
+    match = re.search(r"```(python)?\n?(.*)```", content, re.DOTALL)
+    
+    # Check for a code block AND a plotting command.
+    if match and ('ax.plot' in content or 'ax.scatter' in content):
+        code = match.group(2).strip()
+        try:
+            fig, ax = plt.subplots()
+            # Execute the code, passing the figure and axes
+            exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
+            # Display the plot in Streamlit
+            st.pyplot(fig)
+            plt.close(fig) # Close the figure to free up memory
+        except Exception as e:
+            st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
+            st.code(code, language='python')
+    else:
+        st.markdown(content) # Display regular text messages
+
 def page_3():
-    """Page 3: Main Chat Interface with final robust graph detection."""
+    """Page 3: Main Chat Interface with consistent message rendering."""
     st.title("💬 Start Chatting with MathBuddy")
     st.write("Describe your math question or upload a document to begin!")
 
@@ -153,7 +177,11 @@ def page_3():
     st.subheader("📌 Most Recent Exchange")
     recent = st.session_state.get("recent_message", {"user": "", "assistant": ""})
     if recent["user"] or recent["assistant"]:
-        st.info(f"**You:** {recent['user']}\n\n**MathBuddy:** {recent['assistant']}")
+        with st.chat_message("user"):
+            st.markdown(recent["user"])
+        with st.chat_message("assistant"):
+            # Use the new rendering function here
+            render_message_content(recent["assistant"])
     else:
         st.info("Your first exchange will appear here.")
     
@@ -163,24 +191,8 @@ def page_3():
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
-                content = msg["content"]
-                
-                match = re.search(r"```(python)?\n?(.*)```", content, re.DOTALL)
-                
-                # --- FINAL CORRECTED LOGIC ---
-                # Check for a code block AND a plotting command.
-                if match and ('ax.plot' in content or 'ax.scatter' in content):
-                    code = match.group(2).strip()
-                    try:
-                        fig, ax = plt.subplots()
-                        exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
-                        st.pyplot(fig)
-                        plt.close(fig) # Close the figure to free up memory
-                    except Exception as e:
-                        st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
-                        st.code(code, language='python')
-                else:
-                    st.markdown(content)
+                # Also use the new rendering function here for consistency
+                render_message_content(msg["content"])
 
     st.divider()
     col1, col2 = st.columns(2)
