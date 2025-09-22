@@ -119,13 +119,21 @@ def page_2():
             st.rerun()
 
 def page_3():
+    """Page 3: Main Chat Interface with final robust graph detection."""
     st.title("💬 Start Chatting with MathBuddy")
     st.write("Describe your math question or upload a document to begin!")
+
     tab1, tab2 = st.tabs(["✍️ Direct Chat", "📄 Chat with a Document"])
 
     with tab1:
         st.header("Type your question here")
-        st.text_input("Your question:", key="direct_chat_box", on_change=handle_direct_chat, placeholder="Ask MathBuddy a question and press Enter...", label_visibility="collapsed")
+        st.text_input(
+            "Your question:",
+            key="direct_chat_box",
+            on_change=handle_direct_chat,
+            placeholder="Ask MathBuddy a question and press Enter...",
+            label_visibility="collapsed"
+        )
 
     with tab2:
         st.header("Upload a file to discuss")
@@ -134,6 +142,7 @@ def page_3():
             with st.spinner("Processing file..."):
                 st.session_state.file_text = extract_text_from_file(uploaded_file)
                 st.session_state.processed_file_name = uploaded_file.name
+        
         if st.session_state.get("file_text"):
             st.success(f"✅ Successfully processed **{st.session_state.processed_file_name}**.")
             if prompt := st.chat_input("Ask a question about your document..."):
@@ -150,18 +159,23 @@ def page_3():
     
     st.divider()
     st.subheader("📜 Full Chat History")
+
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
                 content = msg["content"]
+                
                 match = re.search(r"```(python)?\n?(.*)```", content, re.DOTALL)
-                if match and "matplotlib" in content:
+                
+                # --- FINAL CORRECTED LOGIC ---
+                # Check for a code block AND a plotting command.
+                if match and ('ax.plot' in content or 'ax.scatter' in content):
                     code = match.group(2).strip()
                     try:
                         fig, ax = plt.subplots()
                         exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
                         st.pyplot(fig)
-                        plt.close(fig)
+                        plt.close(fig) # Close the figure to free up memory
                     except Exception as e:
                         st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
                         st.code(code, language='python')
