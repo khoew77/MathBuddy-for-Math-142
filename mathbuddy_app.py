@@ -13,7 +13,7 @@ import re
 
 # --- GLOBAL CONFIGURATION AND SETUP ---
 
-st.set_page_config(page_title="MathBuddy", page_icon="🧮", layout="centered")
+st.set_page_config(page_title="MathMentor", page_icon="🧮", layout="centered")
 
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 MODEL = 'gpt-4o'
