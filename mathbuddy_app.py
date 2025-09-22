@@ -172,7 +172,7 @@ def page_2():
 def page_3():
     """Page 3: Main Chat Interface with two input options."""
     st.title("Start Chatting with MathBuddy")
-    st.write("✍️ Describe your math question or upload a document. Let's work through it together!")
+    st.write("Describe your math question or upload a document. Let's work through it together!")
 
     # --- TABS FOR DIFFERENT INPUT METHODS ---
     tab1, tab2 = st.tabs(["✍️ Direct Chat", "📄 Chat with a Document"])
