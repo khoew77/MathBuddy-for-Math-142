@@ -196,13 +196,17 @@ def page_3():
                 with st.spinner("Processing file..."):
                     st.session_state.file_text = extract_text_from_file(uploaded_file)
                     st.session_state.processed_file_name = uploaded_file.name
-                    if st.session_state.file_text:
-                        st.success(f"Successfully processed **{uploaded_file.name}**. You can now ask questions about it.")
-                    else:
-                        st.error("Could not extract text from the file. Please try another file.")
         
+        # Display status message inside the tab
         if "file_text" in st.session_state and st.session_state.file_text:
-            st.info("The document is loaded. Ask your questions below.")
+            # THIS LINE IS IMPROVED
+            st.success(f"Successfully processed **{st.session_state.processed_file_name}**. Use the chat box at the bottom of the page to ask questions about it.")
+
+        # Place the chat input logic inside the tab where it's used
+        if "file_text" in st.session_state and st.session_state.file_text:
+            if prompt := st.chat_input("Ask a question about your document..."):
+                get_chatgpt_response(prompt, context=st.session_state.file_text)
+                st.rerun()
 
     # --- UNIFIED CHAT HISTORY DISPLAY ---
     st.divider()
@@ -214,12 +218,6 @@ def page_3():
     else:
         st.write("Your conversation will appear here.")
     
-    # Unified chat input at the bottom (for document chat context)
-    if "file_text" in st.session_state and st.session_state.file_text:
-        if prompt := st.chat_input("Ask a question about your document..."):
-            get_chatgpt_response(prompt, context=st.session_state.file_text)
-            st.rerun()
-
     # --- NAVIGATION BUTTONS ---
     st.divider()
     col1, col2 = st.columns(2)
