@@ -9,7 +9,7 @@ from PIL import Image
 import pytesseract
 import matplotlib.pyplot as plt
 import numpy as np
-import re # Import the regular expression library
+import re
 
 # --- GLOBAL CONFIGURATION AND SETUP ---
 
@@ -19,19 +19,20 @@ OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 MODEL = 'gpt-4o'
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- MORE ROBUST INITIAL PROMPT ---
+# --- FINAL, CORRECTED INITIAL PROMPT ---
 initial_prompt = (
     "You are a helpful, supportive chatbot named MathBuddy... (previous instructions)... "
-    "When the student asks for their final answer... (previous instructions)... "
-    # THIS IS THE STRICTER INSTRUCTION FOR GRAPHING:
+    # THIS IS THE FINAL, CORRECTED INSTRUCTION FOR GRAPHING:
     "If the user asks for a graph of a specific function (e.g., 'graph y=x^2'), your response MUST start immediately with the Python code block and contain NOTHING ELSE. "
-    "Do not add any introductory text, explanation, or sign-off. Your entire response must be only the code. "
     "The code must be enclosed in a single Python code block (```python...). "
-    "Generate code that defines a figure and axes (e.g., fig, ax = plt.subplots()) and uses `ax.plot()`, `ax.set_title()`, `ax.set_xlabel()`, `ax.set_ylabel()`, and `ax.grid(True)`. "
+    "Your code will be executed in an environment where `fig, ax = plt.subplots()` has ALREADY been run. "
+    "Therefore, you MUST NOT include `import matplotlib.pyplot as plt` or `fig, ax = plt.subplots()` in your code. "
+    "You MUST use the pre-existing `ax` variable to plot (e.g., `ax.plot(...)`, `ax.set_title(...)`, `ax.grid(True)`). "
     "Do NOT provide code for a different function than the one requested. Do not include `plt.show()`."
 )
 
-# (All helper functions like extract_text_from_file, save_to_db, get_chatgpt_response, handle_direct_chat remain the same)
+# (The rest of your script remains exactly the same as the last version.)
+
 def extract_text_from_file(file):
     try:
         if file.type == "application/pdf":
@@ -85,8 +86,6 @@ def handle_direct_chat():
         get_chatgpt_response(prompt)
         st.session_state.direct_chat_box = ""
 
-# --- PAGE DEFINITIONS ---
-
 def page_1():
     st.title("📚 Welcome to MathBuddy")
     st.image("mathbuddy_promo.png", caption="Your Study Companion for Math Success 📱", width=300)
@@ -120,21 +119,13 @@ def page_2():
             st.rerun()
 
 def page_3():
-    """Page 3: Main Chat Interface with robust graph detection."""
     st.title("💬 Start Chatting with MathBuddy")
     st.write("Describe your math question or upload a document to begin!")
-
     tab1, tab2 = st.tabs(["✍️ Direct Chat", "📄 Chat with a Document"])
 
     with tab1:
         st.header("Type your question here")
-        st.text_input(
-            "Your question:",
-            key="direct_chat_box",
-            on_change=handle_direct_chat,
-            placeholder="Ask MathBuddy a question and press Enter...",
-            label_visibility="collapsed"
-        )
+        st.text_input("Your question:", key="direct_chat_box", on_change=handle_direct_chat, placeholder="Ask MathBuddy a question and press Enter...", label_visibility="collapsed")
 
     with tab2:
         st.header("Upload a file to discuss")
@@ -143,7 +134,6 @@ def page_3():
             with st.spinner("Processing file..."):
                 st.session_state.file_text = extract_text_from_file(uploaded_file)
                 st.session_state.processed_file_name = uploaded_file.name
-        
         if st.session_state.get("file_text"):
             st.success(f"✅ Successfully processed **{st.session_state.processed_file_name}**.")
             if prompt := st.chat_input("Ask a question about your document..."):
@@ -160,22 +150,18 @@ def page_3():
     
     st.divider()
     st.subheader("📜 Full Chat History")
-
     if st.session_state.messages:
         for msg in reversed(st.session_state.messages):
             with st.chat_message(msg["role"]):
                 content = msg["content"]
-                
-                # --- UPDATED REGEX: The \n is now optional (\n?) ---
                 match = re.search(r"```(python)?\n?(.*)```", content, re.DOTALL)
-                
                 if match and "matplotlib" in content:
                     code = match.group(2).strip()
                     try:
                         fig, ax = plt.subplots()
                         exec(code, {'plt': plt, 'np': np, 'ax': ax, 'fig': fig})
                         st.pyplot(fig)
-                        plt.close(fig) # Close the figure to free up memory
+                        plt.close(fig)
                     except Exception as e:
                         st.error(f"⚠️ An error occurred while generating the graph:\n{e}")
                         st.code(code, language='python')
@@ -199,7 +185,7 @@ def page_4():
     if not st.session_state.get("feedback_saved"):
         with st.spinner("Generating your feedback summary..."):
             chat_history = "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages)
-            prompt = f"This is a conversation... (summarize)..."
+            prompt = f"This is a conversation between a student and MathBuddy:\n{chat_history}\n\nPlease summarize the key concepts discussed, note the student's areas of strength, and suggest improvements or study tips for them to continue their learning."
             response = client.chat.completions.create(model=MODEL, messages=[{"role": "system", "content": prompt}])
             st.session_state.experiment_plan = response.choices[0].message.content
     st.subheader("📋 Feedback Summary")
