@@ -5,3 +5,4 @@ openai
 pytesseract
 Pillow
 PyMuPDF
+matplotlib
