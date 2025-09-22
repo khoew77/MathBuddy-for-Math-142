@@ -175,13 +175,29 @@ def page_3():
 
     # --- UNIFIED CHAT INPUT AT THE BOTTOM ---
     
-    # Determine the context and set a placeholder
     placeholder_text = "Ask about your document..." if st.session_state.get("file_text") else "Ask MathBuddy a question..."
 
     if prompt := st.chat_input(placeholder_text):
         # Check if there is document context to send
         if st.session_state.get("file_text"):
-            get_chatgpt_response(prompt, context=
+            # This is the corrected line
+            get_chatgpt_response(prompt, context=st.session_state.file_text)
+        else:
+            get_chatgpt_response(prompt) # No context
+        
+        st.rerun()
+
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("◀️ Previous"):
+            st.session_state.step = 2
+            st.rerun()
+    with col2:
+        if st.button("▶️ Next", key="page3_next"):
+            st.session_state.step = 4
+            st.session_state.feedback_saved = False
+            st.rerun()
 
 def page_4():
     st.title("🎉 Wrap-Up: Final Reflection")
